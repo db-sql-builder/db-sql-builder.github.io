@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Candidate SQL Builder</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <!-- Top bar -->
+  <header class="topbar">
+    <div>
+      <h1 class="app-title">Candidate SQL Builder</h1>
+      <p class="muted">Set filters on the left. Copy ready-to-run SQL for Metabase on the right.</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn secondary" id="clearBtn" type="button">Clear all selections</button>
+      <button class="btn" id="copyBtn" type="button">Copy SQL</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: Controls -->
+    <div class="controls-column">
+      <div class="controls-grid">
+        <!-- BASE FILTERS -->
+        <div class="card">
+          <h2 class="title">Base filters</h2>
+          <p class="muted">Always includes <code>max_stage</code>. FROM uses <code>max_stage ms</code> plus <code>contact c</code>.</p>
+
+          <details open>
+            <summary>Titles</summary>
+            <div class="group A">
+              <div class="muted group-label">General Management and Board</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_ceo"> CEO</label>
+                <label><input type="checkbox" id="t_president"> President</label>
+                <label><input type="checkbox" id="t_gm"> GM</label>
+                <label><input type="checkbox" id="t_chairman"> Chairman / OBD</label>
+                <label><input type="checkbox" id="t_fundlevel"> Fund-Level</label>
+              </div>
+            </div>
+            <div class="group B">
+              <div class="muted group-label">Finance</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_cfo"> CFO</label>
+                <label><input type="checkbox" id="t_divcfo"> Divisional CFO</label>
+                <label><input type="checkbox" id="t_vpfin"> VP Finance</label>
+                <label><input type="checkbox" id="t_dirfin"> Director of Finance</label>
+                <label><input type="checkbox" id="t_controller"> Controller</label>
+                <label><input type="checkbox" id="t_op_fin"> OP (Finance)</label>
+              </div>
+            </div>
+            <div class="group C">
+              <div class="muted group-label">Operations and Strategy / Corp Dev</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_coo"> COO</label>
+                <label><input type="checkbox" id="t_vpops"> VP Operations</label>
+                <label><input type="checkbox" id="t_op_ops"> OP (Operations)</label>
+                <label><input type="checkbox" id="t_vpcorpdev"> VP Corp Dev</label>
+                <label><input type="checkbox" id="t_dircorpdev"> Director of Corp Dev</label>
+              </div>
+            </div>
+            <div class="group D">
+              <div class="muted group-label">Go-to-market (Sales, Marketing and RevOps)</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_cro"> CRO</label>
+                <label><input type="checkbox" id="t_cco"> CCO</label>
+                <label><input type="checkbox" id="t_vpsales"> VP Sales</label>
+                <label><input type="checkbox" id="t_dirsales"> Director of Sales</label>
+                <label><input type="checkbox" id="t_vpmarketing"> VP Marketing</label>
+                <label><input type="checkbox" id="t_dirmarketing"> Director of Marketing</label>
+                <label><input type="checkbox" id="t_vprevops"> VP Revenue Operations</label>
+                <label><input type="checkbox" id="t_dirrevops"> Director of Revenue Operations</label>
+                <label><input type="checkbox" id="t_op_sales"> OP (Sales)</label>
+                <label><input type="checkbox" id="t_cmo"> CMO</label>
+              </div>
+            </div>
+            <div class="group E">
+              <div class="muted group-label">People and Legal</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_chro"> CHRO</label>
+                <label><input type="checkbox" id="t_vphr"> VP HR</label>
+                <label><input type="checkbox" id="t_dirhr"> Director of HR</label>
+                <label><input type="checkbox" id="t_gc"> General Counsel</label>
+                <label><input type="checkbox" id="t_assoc_counsel"> Deputy or Associate Counsel</label>
+              </div>
+            </div>
+            <div class="group F">
+              <div class="muted group-label">Technology and Product</div>
+              <div class="col col4">
+                <label><input type="checkbox" id="t_cto"> CTO</label>
+                <label><input type="checkbox" id="t_cio"> CIO</label>
+                <label><input type="checkbox" id="t_vpit"> VP of IT</label>
+                <label><input type="checkbox" id="t_vpengineering"> VP of Engineering</label>
+                <label><input type="checkbox" id="t_cpo"> CPO (Product)</label>
+              </div>
+            </div>
+            <div class="hint">Acronyms like CFO or COO use <b>LIKE</b> (case sensitive) to avoid false positives.</div>
+          </details>
+
+          <details>
+            <summary>Location</summary>
+            <div class="subsection">
+              <div class="subsection-header">
+                <span class="muted">Mailing state</span>
+              </div>
+              <div class="tzgrid">
+                <div class="group A">
+                  <div class="row group-header">
+                    <div class="muted">Eastern</div>
+                    <button class="btn secondary" data-selall="east" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_east"></div>
+                </div>
+                <div class="group B">
+                  <div class="row group-header">
+                    <div class="muted">Central</div>
+                    <button class="btn secondary" data-selall="central" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_central"></div>
+                </div>
+                <div class="group C">
+                  <div class="row group-header">
+                    <div class="muted">Mountain</div>
+                    <button class="btn secondary" data-selall="mountain" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_mountain"></div>
+                </div>
+                <div class="group D">
+                  <div class="row group-header">
+                    <div class="muted">Pacific</div>
+                    <button class="btn secondary" data-selall="pacific" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_pacific"></div>
+                </div>
+                <div class="group E">
+                  <div class="row group-header">
+                    <div class="muted">Alaska</div>
+                    <button class="btn secondary" data-selall="alaska" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_alaska"></div>
+                </div>
+                <div class="group F">
+                  <div class="row group-header">
+                    <div class="muted">Hawaii</div>
+                    <button class="btn secondary" data-selall="hawaii" type="button">Select all</button>
+                  </div>
+                  <div class="col" id="tz_hawaii"></div>
+                </div>
+              </div>
+              <div class="hint">Adds abbreviation, full name and a <code>ILIKE '%state_name%'</code> safeguard.</div>
+            </div>
+
+            <div class="subsection">
+              <div class="subsection-header">
+                <span class="muted">Mailing city</span>
+              </div>
+              <div class="row" style="margin-left:4px">
+                <label><input type="checkbox" id="city_include_on"> Include these cities</label>
+                <textarea id="city_include" class="w-300 bigbox" placeholder="Dallas, Austin, Tampa"></textarea>
+              </div>
+              <div class="row" style="margin-left:4px">
+                <label><input type="checkbox" id="city_exclude_on"> Exclude these cities</label>
+                <textarea id="city_exclude" class="w-300 bigbox" placeholder="Plano, Boca Raton"></textarea>
+              </div>
+            </div>
+          </details>
+
+          <details>
+            <summary>Backing</summary>
+            <div class="row" style="margin-left:4px">
+              <label>Logic:
+                <select id="backing_logic">
+                  <option value="any">Any (OR)</option>
+                  <option value="all">All (AND)</option>
+                </select>
+              </label>
+            </div>
+            <div class="group" style="margin-top:6px">
+              <div class="col col4">
+                <label><input type="checkbox" id="bk_pe"> PE</label>
+                <label><input type="checkbox" id="bk_exit"> Exit experience</label>
+                <label><input type="checkbox" id="bk_public"> Public</label>
+                <label><input type="checkbox" id="bk_private"> Private</label>
+                <label><input type="checkbox" id="bk_vc"> VC</label>
+              </div>
+            </div>
+          </details>
+
+          <details open>
+            <summary>Furthest stage made</summary>
+            <p class="muted">All stages are included by default. Uncheck any stages you want to exclude.</p>
+            <div class="group">
+              <div class="col col3" id="stage_checks"></div>
+            </div>
+          </details>
+
+          <details>
+            <summary>Assignment exclusions</summary>
+            <div class="row" style="margin-bottom:6px">
+              <label><input type="checkbox" id="f_not_in_assignment"> Exclude candidates already in this assignment</label>
+            </div>
+            <div class="row">
+              <label class="row">
+                Assignment ID:
+                <input id="assign_id" placeholder="006Rj00000OJsA9IAL" class="w-300">
+              </label>
+            </div>
+          </details>
+
+          <details>
+            <summary>Export formatting</summary>
+            <div class="row">
+              <label><input type="checkbox" id="fmt_dl"> Uncomment export wrapper</label>
+              <label class="row">
+                List name:
+                <input id="fmt_listname" placeholder="My Candidate Export" class="w-300">
+              </label>
+              <label><input type="checkbox" id="fmt_loc"> Include location (mailing_city, mailing_state)</label>
+            </div>
+          </details>
+        </div>
+
+        <!-- INDUSTRIES -->
+        <div class="card">
+          <h2 class="title">Industries</h2>
+          <p class="muted">Mix Salesforce industry, LinkedIn industry, industry keywords and PB companies.</p>
+
+          <!-- Industry score toggle -->
+          <div class="row" style="margin-left:4px;margin-bottom:4px">
+            <label>
+              <input type="checkbox" id="ind_score_on" disabled>
+              Use Industry Score
+            </label>
+            <span class="hint">(requires Salesforce industries, LinkedIn industries, and industry keywords)</span>
+          </div>
+
+          <details open>
+            <summary>Salesforce industries</summary>
+            <!-- Reordered groups -->
+            <div class="group C">
+              <div class="muted group-label">Industrials and Distribution</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_process_mfg"> Process manufacturing</label>
+                <label><input type="checkbox" id="ind_discrete_mfg"> Discrete manufacturing</label>
+                <label><input type="checkbox" id="ind_engineered_equip"> Engineered equipment</label>
+                <label><input type="checkbox" id="ind_distribution"> Distribution</label>
+              </div>
+            </div>
+            <div class="group E">
+              <div class="muted group-label">Business and financial services</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_prof_services"> Professional services</label>
+                <label><input type="checkbox" id="ind_fin_services"> Financial services</label>
+                <label><input type="checkbox" id="ind_multi_site"> Multi-site services</label>
+              </div>
+            </div>
+            <div class="group B">
+              <div class="muted group-label">Technology</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_saas"> SaaS</label>
+                <label><input type="checkbox" id="ind_it_services"> IT services</label>
+              </div>
+            </div>
+            <div class="group D">
+              <div class="muted group-label">Consumer, retail and food and beverage</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_consumer"> Consumer</label>
+                <label><input type="checkbox" id="ind_retail"> Retail</label>
+                <label><input type="checkbox" id="ind_food_bev"> Food and beverage</label>
+              </div>
+            </div>
+            <div class="group A">
+              <div class="muted group-label">Healthcare</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_health_srv_cons"> Healthcare services - consumer</label>
+                <label><input type="checkbox" id="ind_health_supplies"> Healthcare supplies or devices</label>
+              </div>
+            </div>
+            <div class="group F">
+              <div class="muted group-label">Energy and public sector</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="ind_energy"> Energy</label>
+                <label><input type="checkbox" id="ind_government"> Government</label>
+                <label><input type="checkbox" id="ind_other"> Other</label>
+                <label><input type="checkbox" id="ind_other_misc"> Other or misc</label>
+              </div>
+            </div>
+          </details>
+
+          <details>
+            <summary>LinkedIn industries</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="exp_industries_on"> Enable</label>
+              <textarea id="exp_industries" class="w-300 bigbox" placeholder="roof, civil engineering"></textarea>
+            </div>
+            <div class="hint">Matches against <code>a.linked_in_industry_c</code> in work experience.</div>
+          </details>
+
+          <details>
+            <summary>Industry keywords</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="ind_kw_on"> Enable industry keywords</label>
+              <textarea id="ind_keywords" class="w-300 bigbox2" placeholder="construction, roofing, facilities maintenance"></textarea>
+            </div>
+            <div class="hint">
+              Uses the same keyword fields as the general Keyword matching section. This will feed an Industry Score later.
+            </div>
+          </details>
+
+          <details>
+            <summary>PitchBook company match</summary>
+            <div style="margin-left:4px">
+              <label class="row"><input type="checkbox" id="exp_pb_on"> Enable (paste LinkedIn company URLs or slugs)</label>
+              <textarea id="exp_pb_list" class="bigbox w-300" placeholder="https://www.linkedin.com/company/acme-corp/&#10;another-company"></textarea>
+              <div class="row">
+                <label>Label to set when matched:
+                  <input id="exp_pb_label" class="w-300" placeholder="My PB List Label">
+                </label>
+              </div>
+
+              <div class="group" style="margin-top:8px">
+                <div class="row">
+                  <label><input type="checkbox" id="pb_req_title"> Require title match at PB company</label>
+                  <input id="pb_title_patterns" class="w-300" placeholder="cfo, fp&a, finance leader">
+                </div>
+                <div class="row">
+                  <label><input type="checkbox" id="pb_req_recent"> Require PB role within</label>
+                  <input id="pb_recent_years" type="number" class="w-110" min="1" step="1" value="10">
+                  <span>years</span>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- EXPERIENCE -->
+        <div class="card">
+          <h2 class="title">Experience</h2>
+          <p class="muted">Work history rollups, background inference, keywords and size. PitchBook and LinkedIn industry live in the Industries card.</p>
+
+          <div class="row section-toggle">
+            <label>Combine non PB matchers:
+              <select id="exp_logic">
+                <option value="any">Any (OR)</option>
+                <option value="all">All (AND)</option>
+              </select>
+            </label>
+          </div>
+
+          <details>
+            <summary>Background inference</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="exp_bg_on"> Enable background inference CTEs</label>
+              <label>Logic:
+                <select id="bg_logic">
+                  <option value="any">Any (OR)</option>
+                  <option value="all">All (AND)</option>
+                </select>
+              </label>
+              <label><input type="checkbox" id="bg_jobfn_counts" checked> Count job function field as 1 background role</label>
+              <label><input type="checkbox" id="acc_cpa_counts" checked> Count CPA hint as 1 accounting role</label>
+            </div>
+
+            <div class="group" style="margin-left:4px">
+              <div class="muted" style="margin:4px 0 4px">
+                Minimum roles required per background (0 ignores that category in filtering):
+              </div>
+              <div class="col col4">
+                <label>Finance min ≥
+                  <input id="bg_min_fin"     type="number" min="0" step="1" class="w-110" value="0">
+                </label>
+                <label>Accounting min ≥
+                  <input id="bg_min_acc"     type="number" min="0" step="1" class="w-110" value="0">
+                </label>
+                <label>Commercial min ≥
+                  <input id="bg_min_comm"    type="number" min="0" step="1" class="w-110" value="0">
+                </label>
+                <label>Operational min ≥
+                  <input id="bg_min_ops"     type="number" min="0" step="1" class="w-110" value="0">
+                </label>
+              </div>
+            </div>
+
+            <details style="margin-left:4px">
+              <summary>Keyword sets (editable)</summary>
+              <div class="group">
+                <div class="muted">Comma or newline separated. We match case insensitively in role titles.</div>
+                <div class="row">
+                  <label class="span2">Commercial<br>
+                    <textarea id="bg_kw_comm" class="w-300 bigbox2">sales, account executive, business development, BD, revenue, cro, marketing, commercial</textarea>
+                  </label>
+                  <label class="span2">Operational<br>
+                    <textarea id="bg_kw_ops" class="w-300 bigbox2">operations, operating, COO, ops, plant, manufactur, supply chain, logistics, fulfillment</textarea>
+                  </label>
+                  <label class="span2">Finance<br>
+                    <textarea id="bg_kw_fin" class="w-300 bigbox2">finance, fp&a, financial planning, treasury, strategic finance, capital markets</textarea>
+                  </label>
+                  <label class="span2">Accounting<br>
+                    <textarea id="bg_kw_acc" class="w-300 bigbox2">controller, accounting, audit, assurance</textarea>
+                  </label>
+                </div>
+              </div>
+            </details>
+          </details>
+
+          <details>
+            <summary>Keyword matching</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="exp_keywords_on"> Enable general keywords</label>
+              <textarea id="exp_keywords" class="w-300 bigbox2" placeholder="distribution, construction"></textarea>
+            </div>
+            <div class="group" style="margin-left:4px">
+              <div class="muted">Fields to scan for both general and industry keywords:</div>
+              <div class="col col3">
+                <label><input type="checkbox" id="kw_role_notes" checked> Role notes (w.role_notes_c)</label>
+                <label><input type="checkbox" id="kw_products" checked> Work products or services (w.product_s_or_service_s_c)</label>
+                <label><input type="checkbox" id="kw_acct_desc" checked> Company description (a.description)</label>
+                <label><input type="checkbox" id="kw_acct_prod" checked> Company products or services (a.products_services_c)</label>
+                <label><input type="checkbox" id="kw_contact_notes" checked> Contact analyst notes (c.analyst_notes_c)</label>
+                <label><input type="checkbox" id="kw_li_json" checked> Contact LinkedIn JSON (c.linked_in_json_c)</label>
+              </div>
+            </div>
+          </details>
+
+          <details>
+            <summary>Company size (revenue)</summary>
+            <div class="group" style="margin-left:4px">
+              <div class="row">
+                <label><input type="checkbox" id="exp_size_on"> Enable size filters</label>
+                <label>Start revenue ≥
+                  <input id="exp_rev_min" type="number" class="w-110" placeholder="25"> mm
+                </label>
+                <label>End revenue ≤
+                  <input id="exp_rev_max" type="number" class="w-110" placeholder="275"> mm
+                </label>
+              </div>
+              <div class="muted" style="margin:6px 0 4px">Or match Approximate Revenue buckets:</div>
+              <div class="col col4">
+                <label><input type="checkbox" class="bucket" value="&lt;$10mm">&lt; 10 mm</label>
+                <label><input type="checkbox" class="bucket" value="$10-$24mm">10 to 24 mm</label>
+                <label><input type="checkbox" class="bucket" value="$25-$49mm">25 to 49 mm</label>
+                <label><input type="checkbox" class="bucket" value="$50-$99mm">50 to 99 mm</label>
+                <label><input type="checkbox" class="bucket" value="$100-$199mm">100 to 199 mm</label>
+                <label><input type="checkbox" class="bucket" value="$200-$349mm">200 to 349 mm</label>
+                <label><input type="checkbox" class="bucket" value="$350-$499mm">350 to 499 mm</label>
+                <label><input type="checkbox" class="bucket" value="$500-$999mm">500 to 999 mm</label>
+                <label><input type="checkbox" class="bucket" value="&gt;$1B">More than 1B</label>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- SCREENED CANDIDATES -->
+        <div class="card">
+          <h2 class="title">Screened candidates</h2>
+          <p class="muted">Filters that depend on candidate screenings.</p>
+
+          <details>
+            <summary>Candidate compensation</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="scr_comp_filter"> Filter by candidate compensation (also include Base and OTE fields)</label>
+              <label>Base &lt;
+                <input id="scr_base_lt" type="number" value="400" step="10" class="w-160">
+              </label>
+              <label>OTE &lt;
+                <input id="scr_ote_lt" type="number" value="600" step="10" class="w-160">
+              </label>
+            </div>
+          </details>
+
+          <details>
+            <summary>Open to relocation</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="scr_relo_yes"> Require relocation flexibility = “Yes”</label>
+              <span class="hint">Only includes candidates with a screening where they answered “Yes”.</span>
+            </div>
+          </details>
+
+          <details>
+            <summary>End markets</summary>
+            <div class="row" style="margin-left:4px">
+              <label><input type="checkbox" id="exp_endmarket_on"> Enable end market filter</label>
+              <textarea id="exp_endmarket" class="w-300 bigbox" placeholder="gov, federal"></textarea>
+            </div>
+            <div class="hint">Matches against <code>w.end_market_s_c</code> in work experience.</div>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: SQL preview -->
+    <div class="preview-column">
+      <div class="card sql-card sticky">
+        <div class="sql-header">
+          <h2 class="title">Final SQL</h2>
+          <p class="muted">Metabase or Redshift ready. Copy and paste as is.</p>
+        </div>
+        <textarea id="finalSql" spellcheck="false"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
