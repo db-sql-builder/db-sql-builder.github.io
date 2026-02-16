@@ -903,7 +903,7 @@ function buildSQL(){
       "c.mailing_city",
       "c.mailing_state",
       "ms.stage_number",
-      "DENSE_RANK() OVER (ORDER BY ms.stage_number) AS priority",
+      "DENSE_RANK() OVER (ORDER BY ms.stage_number DESC) AS priority",
       "ms.outcome_match_c",
       "ms.summary_c"
     ];
@@ -1162,11 +1162,11 @@ if (endOn) parts.push('wr.end_market_match = 1');
       where.push(`cbad.in_search = 0`);
     }
 
-    // Default ordering: highest stage first (numeric stage_rank).
-    // If Industry Score is enabled, sort by industry_score first.
-    const orderExpr = useIndustryScore
-      ? `industry_score DESC, ms.stage_rank DESC`
-      : `ms.stage_rank DESC`;
+    // Default ordering: priority ASC (1 = furthest stage, higher numbers = earlier stages).
+// If Industry Score is enabled, sort by industry_score first, then priority.
+const orderExpr = useIndustryScore
+  ? `industry_score DESC, priority ASC`
+  : `priority ASC`;
 
     const liIndustryFilterComment = (useExperienceCtes && hasLinkedInInd)
       ? `\n\n/* uncomment to filter on linkedin company\nAND wr.li_industry_match = 1\n*/`
