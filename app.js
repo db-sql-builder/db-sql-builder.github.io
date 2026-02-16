@@ -164,7 +164,8 @@ function bindAutoEnable(){
 // ---------- title patterns ----------
 function titlePatterns(){
   return {
-    t_ceo:`(c.relative_position_ii_c IN ('CEO') OR c.title ILIKE '%chief exec%' OR c.title LIKE '%CFO%'::VARCHAR::VARCHAR REPLACE(' CFO',' CEO') OR c.title LIKE '%CEO%')`,
+    // CEO: remove the stray CFO->CEO replace fragment (was producing invalid SQL)
+    t_ceo:`(c.relative_position_ii_c IN ('CEO') OR c.title ILIKE '%chief exec%' OR c.title LIKE '%CEO%')`,
     t_president:`(c.relative_position_ii_c IN ('President') OR (c.title ILIKE '%president%' AND c.title NOT ILIKE '%vice%'))`,
     t_gm:`(c.relative_position_ii_c IN ('GM','General Manager') OR c.title ILIKE '%general manager%' OR c.title ILIKE '% GM%')`,
     t_chairman:`(c.relative_position_ii_c IN ('Chairman / OBD','Chairman','Operating Board Director','OBD') OR c.title ILIKE '%chairman%' OR c.title ILIKE '%board%')`,
@@ -318,10 +319,36 @@ function mailingStateFilter(){
     const abbr = n.id.replace('state_','');
     const name = STATES[abbr];
     parts.push(`c.mailing_state = '${esc(abbr)}'`);
-    parts.push(`c.mailing_state = '${esc(name)}'`);
+    // Full state-name equality is redundant if we already have an ILIKE safeguard.
     parts.push(`c.mailing_state ILIKE '%${esc(name.toLowerCase())}%'`);
   });
   return `(${parts.join(' OR ')})`;
+}
+
+
+function mailingCountryFilter(){
+  // Optional: enable non-US searches by filtering on c.mailing_country
+  // UI expects:
+  // - checkbox id="country_on"
+  // - text input/textarea id="country_codes" (comma/newline separated, e.g. "US, CA, Canada")
+  const on = $('country_on');
+  const box = $('country_codes');
+  if (!on || !box || !on.checked) return '';
+  const vals = parseList(box.value);
+  if (!vals.length) return '';
+  const parts = [];
+  vals.forEach(v=>{
+    const raw = v.trim();
+    if (!raw) return;
+    // If user entered a short code (2-3 letters), treat as exact match.
+    if (/^[A-Za-z]{2,3}$/.test(raw)){
+      parts.push(`c.mailing_country = '${esc(raw.toUpperCase())}'`);
+      return;
+    }
+    // Otherwise do a substring match against the country name/label.
+    parts.push(`c.mailing_country ILIKE '%${esc(raw.toLowerCase())}%'`);
+  });
+  return parts.length ? `(${parts.join(' OR ')})` : '';
 }
 
 function cityGroup(onId, boxId){
@@ -380,7 +407,7 @@ function workCtes(sf1, sf2){
   };
 
   const indCase = inds.length
-    ? `CASE ${inds.map(v => `WHEN a.linked_in_industry_c ILIKE '%${esc(v)}%' THEN 1`).join(' ')} ELSE 0 END AS industry_match`
+    ? `CASE ${inds.map(v => `WHEN a.linked_in_industry_c ILIKE '%${esc(v)}%' THEN 1`).join(' ')} ELSE 0 END AS li_industry_match`
     : '';
 
   const endCase = ends.length
@@ -512,8 +539,8 @@ work_latest AS (
 work_rollup AS (
   SELECT
     contact_id,
-    MAX(CASE WHEN ${inds.length ? 'industry_match = 1'           : 'FALSE'} THEN 1 ELSE 0 END) AS industry_match,
-    COUNT(DISTINCT CASE WHEN ${inds.length ? 'industry_match = 1' : 'FALSE'} THEN linked_in_industry_c END) AS li_industry_distinct_count,
+    MAX(CASE WHEN ${inds.length ? 'li_industry_match = 1'           : 'FALSE'} THEN 1 ELSE 0 END) AS li_industry_match,
+    COUNT(DISTINCT CASE WHEN ${inds.length ? 'li_industry_match = 1' : 'FALSE'} THEN linked_in_industry_c END) AS li_industry_distinct_count,
     MAX(CASE WHEN ${ends.length ? 'end_market_match = 1'         : 'FALSE'} THEN 1 ELSE 0 END) AS end_market_match,
     MAX(CASE WHEN ${keysGeneral.length ? 'keyword_found = 1'     : 'FALSE'} THEN 1 ELSE 0 END) AS keyword_found,
     MAX(CASE WHEN ${keysIndustry.length ? 'industry_keyword_found = 1' : 'FALSE'} THEN 1 ELSE 0 END) AS industry_keyword_found,
@@ -767,7 +794,7 @@ contacts_already_in_opp AS (
 // ---------- max stage CTE ----------
 function maxStageCte(){
   return `WITH max_stage AS (
-  SELECT candidate_c, id, stage_number, search_c, outcome_match_c, summary_c
+  SELECT candidate_c, id, stage_number, stage_rank, search_c, outcome_match_c, summary_c
   FROM (
     SELECT
       candidate_c,
@@ -791,6 +818,20 @@ function maxStageCte(){
         WHEN m.stage_c = 'Offer Extended'       THEN '9-Offer Extended'
         WHEN m.stage_c = 'Placed'               THEN 'Placed'
       END AS stage_number,
+      CASE
+        WHEN m.stage_c = 'Database Sourced'     THEN 0
+        WHEN m.stage_c = 'Sourcing'             THEN 1
+        WHEN m.stage_c = 'Targeted'             THEN 2
+        WHEN m.stage_c = 'Engaged'              THEN 3
+        WHEN m.stage_c = 'Recruited'            THEN 4
+        WHEN m.stage_c IN ('Testing','Tested')  THEN 5
+        WHEN m.stage_c = 'Video Interviewed'    THEN 6
+        WHEN m.stage_c IN ('Presented','On Slate') THEN 7
+        WHEN m.stage_c = 'Client Interview'     THEN 8
+        WHEN m.stage_c = 'Offer Extended'       THEN 9
+        WHEN m.stage_c = 'Placed'               THEN 10
+        ELSE -1
+      END AS stage_rank,
       row_number() over (partition by candidate_c order by
         CASE
           WHEN m.stage_c = 'Database Sourced'     THEN 0
@@ -862,6 +903,7 @@ function buildSQL(){
       "c.mailing_city",
       "c.mailing_state",
       "ms.stage_number",
+      "DENSE_RANK() OVER (ORDER BY ms.stage_number) AS priority",
       "ms.outcome_match_c",
       "ms.summary_c"
     ];
@@ -882,7 +924,7 @@ LEFT JOIN salesforce_sandbox.contact AS c ON c.id = ms.candidate_c`;
         "w.date_to_c AS end_date"
       );
 
-      if (hasLinkedInInd) selectCols.push("wr.industry_match");
+      if (hasLinkedInInd) selectCols.push("wr.li_industry_match");
       if (hasEnd)         selectCols.push("wr.end_market_match");
       if (hasKeywords)    selectCols.push("wr.keyword_found");
       if (hasPB)          selectCols.push("wr.pb_ok AS pb_match");
@@ -978,7 +1020,7 @@ END`;
       }
 
       const liScoreExpr = `(
-  10 * CASE WHEN COALESCE(wr.industry_match, 0) = 1 THEN 1 ELSE 0 END
+  10 * CASE WHEN COALESCE(wr.li_industry_match, 0) = 1 THEN 1 ELSE 0 END
   + 10 * CASE WHEN COALESCE(wr.li_industry_distinct_count, 0) >= 2 THEN 1 ELSE 0 END
   + 10 * (${latestLiExpr})
 )`;
@@ -1018,6 +1060,9 @@ END`;
     const states = mailingStateFilter();
     if (states) where.push(states);
 
+    const countries = mailingCountryFilter();
+    if (countries) where.push(countries);
+
     const cityInc = mailingCityInclude();
     if (cityInc) where.push(cityInc);
 
@@ -1035,9 +1080,7 @@ END`;
       const keyOn = hasKeywords;
       const pbOn  = hasPB;
       const sizeOn = hasSize;
-
-      if (indOn) parts.push('wr.industry_match = 1');
-      if (endOn) parts.push('wr.end_market_match = 1');
+if (endOn) parts.push('wr.end_market_match = 1');
       if (keyOn) parts.push('wr.keyword_found = 1');
       if (pbOn)  parts.push('wr.pb_ok = 1');
 
@@ -1119,20 +1162,28 @@ END`;
       where.push(`cbad.in_search = 0`);
     }
 
-    const orderExpr = `ms.stage_number DESC`;
+    // Default ordering: highest stage first (numeric stage_rank).
+    // If Industry Score is enabled, sort by industry_score first.
+    const orderExpr = useIndustryScore
+      ? `industry_score DESC, ms.stage_rank DESC`
+      : `ms.stage_rank DESC`;
+
+    const liIndustryFilterComment = (useExperienceCtes && hasLinkedInInd)
+      ? `\n\n/* uncomment to filter on linkedin company\nAND wr.li_industry_match = 1\n*/`
+      : '';
 
     // Final SQL
     let sql = `
 ${ctes}
 
 -- Export wrapper (commented by default). Use the toggle in Export formatting to uncomment.
--- SELECT '${esc(($('fmt_listname').value||''))}' AS list, contactid, ROW_NUMBER() OVER (ORDER BY ${orderExpr}) AS priority${$('fmt_loc').checked ? ', mailing_city, mailing_state' : ''}
+-- SELECT '${esc(($('fmt_listname').value||''))}' AS list, contactid, priority${$('fmt_loc').checked ? ', mailing_city, mailing_state' : ''}
 -- FROM (
 SELECT
   ${selectCols.join(',\n  ')}
 ${from}
 WHERE
-  ${where.join('\n  AND ')}
+  ${where.join('\n  AND ')}${liIndustryFilterComment}
 ORDER BY ${orderExpr}
 -- ) t
 `.trim();
@@ -1171,6 +1222,7 @@ function bindGeneral(){
     'f_not_in_assignment','assign_id',
     'fmt_dl','fmt_listname','fmt_loc',
     'backing_logic','city_include_on','city_include','city_exclude_on','city_exclude',
+    'country_on','country_codes',
     'ind_score_on'
   ].forEach(id=>{
     const n = $(id);
@@ -1219,5 +1271,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
   bindAutoEnable();
   bindGeneral();
   updateIndustryScoreToggle();
+
+  // Ensure default accounting keywords include 'accountant'
+  const accKw = $('bg_kw_acc');
+  if (accKw){
+    const cur = (accKw.value || '').trim();
+    const has = cur.toLowerCase().split(/,|\n/).map(s=>s.trim()).filter(Boolean).includes('accountant');
+    if (!has){
+      accKw.value = cur ? `${cur}, accountant` : 'accountant';
+    }
+  }
+
   buildSQL();
 });

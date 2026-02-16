@@ -155,6 +155,17 @@
 
             <div class="subsection">
               <div class="subsection-header">
+                <span class="muted">Mailing country</span>
+              </div>
+              <div class="row" style="margin-left:4px">
+                <label><input type="checkbox" id="country_on"> Filter by mailing country</label>
+                <textarea id="country_codes" class="w-300 bigbox" placeholder="US&#10;CA&#10;United Kingdom&#10;Germany"></textarea>
+              </div>
+              <div class="hint">Use 2 or 3 letter codes (e.g., US, CA, GB) for exact match; otherwise we fall back to <code>ILIKE</code> on the country name.</div>
+            </div>
+
+            <div class="subsection">
+              <div class="subsection-header">
                 <span class="muted">Mailing city</span>
               </div>
               <div class="row" style="margin-left:4px">
